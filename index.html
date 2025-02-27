@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Static Admin-User Chat (No Server)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #6e8efb, #a777e3);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        #home, #startScreen, #chat {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 30px;
+            width: 100%;
+            max-width: 700px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        #home {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        #startScreen, #chat {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.8em;
+            text-align: center;
+        }
+
+        #home button, #startScreen input, #startScreen button, #chat input, #chat button {
+            width: 80%;
+            padding: 12px;
+            border: none;
+            border-radius: 25px;
+            font-size: 1em;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        #home button, #startScreen button, #chat button {
+            background: linear-gradient(90deg, #6e8efb, #a777e3);
+            color: white;
+            cursor: pointer;
+        }
+
+        #home button:hover, #startScreen button:hover, #chat button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        #startScreen input, #chat input {
+            border: 2px solid #ddd;
+            padding: 12px;
+        }
+
+        #startScreen input:focus, #chat input:focus {
+            border-color: #6e8efb;
+        }
+
+        #messages {
+            height: 400px;
+            overflow-y: auto;
+            border-radius: 10px;
+            background: #f9f9f9;
+            padding: 15px;
+            border: 1px solid #eee;
+            margin-bottom: 15px;
+            width: 80%;
+        }
+
+        #messages p {
+            margin: 10px 0;
+            padding: 10px 15px;
+            background: #fff;
+            border-radius: 20px;
+            max-width: 70%;
+            word-wrap: break-word;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            animation: slideIn 0.3s ease;
+        }
+
+        #messages p.sent {
+            background: #6e8efb;
+            color: white;
+            margin-left: auto;
+            text-align: right;
+        }
+
+        #messages p time {
+            font-size: 0.8em;
+            color: #888;
+            display: block;
+            margin-top: 5px;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        #chat form {
+            display: flex;
+            gap: 10px;
+            width: 80%;
+        }
+
+        @media (max-width: 600px) {
+            #home, #startScreen, #chat {
+                max-width: 90%;
+                padding: 20px;
+            }
+
+            #home button, #startScreen input, #startScreen button, #chat input, #chat button, #messages, #chat form {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Home Screen -->
+    <div id="home">
+        <h2>Welcome to Static Chat</h2>
+        <button onclick="showAdmin()">Admin</button>
+        <button onclick="showUser()">User</button>
+    </div>
+
+    <!-- Admin Start Screen -->
+    <div id="startScreen">
+        <h2>Admin Setup</h2>
+        <input type="text" id="name" placeholder="Enter your name" required />
+        <button onclick="generateRoomCode()">Generate 4-Digit Pin</button>
+        <p>Share this 4-digit pin with users to join: <strong id="pinDisplay"></strong></p>
+        <button onclick="startChat()">Start Chat</button>
+        <p>Note: Refresh to see updates from others. Admin can clear the chat for all.</p>
+    </div>
+
+    <!-- Chat Screen -->
+    <div id="chat" style="display: none;">
+        <h2>Chat Room: <span id="roomCodeDisplay"></span></h2>
+        <div id="messages"></div>
+        <form onsubmit="sendMessage(); return false;">
+            <input type="text" id="message" placeholder="Type a message" required />
+            <button type="submit">Send</button>
+        </form>
+        <div id="adminControls" style="display: none; margin-top: 10px;">
+            <button onclick="clearChat()">Clear Chat for All</button>
+        </div>
+        <p>Note: Refresh to see updates from others.</p>
+    </div>
+
+    <script>
+        // Store chat data in localStorage
+        let chatData = JSON.parse(localStorage.getItem('chatData')) || {};
+        let userName = '';
+        let roomCode = '';
+        let isAdmin = false;
+
+        // Show home screen by default
+        window.onload = () => {
+            document.getElementById('home').style.display = 'flex';
+            document.getElementById('startScreen').style.display = 'none';
+            document.getElementById('chat').style.display = 'none';
+            const savedData = localStorage.getItem('chatData');
+            if (savedData) {
+                chatData = JSON.parse(savedData);
+            }
+        };
+
+        // Show admin setup
+        function showAdmin() {
+            document.getElementById('home').style.display = 'none';
+            document.getElementById('startScreen').style.display = 'flex';
+            document.getElementById('chat').style.display = 'none';
+            document.getElementById('adminOptions').style.display = 'none'; // Hide pin display initially
+        }
+
+        // Show user join
+        function showUser() {
+            document.getElementById('home').style.display = 'none';
+            document.getElementById('startScreen').style.display = 'flex';
+            document.getElementById('chat').style.display = 'none';
+            document.getElementById('adminOptions').style.display = 'none'; // Hide admin options for users
+        }
+
+        // Generate a 4-digit pin for admin
+        function generateRoomCode() {
+            roomCode = Math.floor(1000 + Math.random() * 9000).toString();
+            document.getElementById('roomCode').value = '';
+            document.getElementById('pinDisplay').textContent = roomCode;
+            document.getElementById('adminOptions').style.display = 'block';
+            alert(`Generated 4-digit pin: ${roomCode}. Share this with users to join.`);
+        }
+
+        // Start or join chat based on role
+        function startChat() {
+            userName = document.getElementById('name').value.trim();
+            roomCode = document.getElementById('roomCode').value.trim();
+            if (!userName) return alert('Please enter a name');
+            if (!roomCode || !/^\d{4}$/.test(roomCode)) return alert('Please enter a valid 4-digit pin');
+
+            // Check if this user is the admin (first to generate the pin)
+            const adminKey = `admin_${roomCode}`;
+            isAdmin = !chatData[roomCode] || localStorage.getItem(adminKey) === null;
+            if (isAdmin) {
+                localStorage.setItem(adminKey, userName); // Mark this user as admin
+                chatData[roomCode] = {
+                    messages: [],
+                    users: new Set(),
+                    admin: userName
+                };
+            } else {
+                if (!chatData[roomCode]) return alert('Invalid pin or room not found');
+                chatData[roomCode].users.add(userName);
+            }
+            localStorage.setItem('chatData', JSON.stringify(chatData));
+
+            document.getElementById('startScreen').style.display = 'none';
+            document.getElementById('chat').style.display = 'flex';
+            document.getElementById('roomCodeDisplay').textContent = roomCode;
+            document.getElementById('adminControls').style.display = isAdmin ? 'block' : 'none';
+            loadMessages();
+        }
+
+        function sendMessage() {
+            const messageInput = document.getElementById('message');
+            const message = messageInput.value.trim();
+            if (!message) return;
+
+            const timestamp = new Date().toLocaleTimeString();
+            const messageObj = {
+                name: userName,
+                text: message,
+                time: timestamp
+            };
+
+            if (!chatData[roomCode]) chatData[roomCode] = { messages: [], users: new Set(), admin: '' };
+            chatData[roomCode].messages.push(messageObj);
+            chatData[roomCode].users.add(userName);
+            localStorage.setItem('chatData', JSON.stringify(chatData));
+
+            displayMessages();
+            messageInput.value = '';
+        }
+
+        function loadMessages() {
+            if (chatData[roomCode] && chatData[roomCode].messages) {
+                displayMessages();
+            }
+        }
+
+        function displayMessages() {
+            const messagesDiv = document.getElementById('messages');
+            messagesDiv.innerHTML = chatData[roomCode].messages.map(msg => `
+                <p class="${msg.name === userName ? 'sent' : ''}">
+                    <strong>${msg.name}</strong>: ${msg.text}
+                    <time>${msg.time}</time>
+                </p>
+            `).join('');
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function clearChat() {
+            if (!isAdmin) return alert('Only the admin can clear the chat');
+            if (confirm('Are you sure you want to clear the chat for all users?')) {
+                chatData[roomCode] = { messages: [], users: new Set(), admin: chatData[roomCode]?.admin || '' };
+                localStorage.setItem('chatData', JSON.stringify(chatData));
+                displayMessages();
+            }
+        }
+    </script>
+</body>
+</html>
